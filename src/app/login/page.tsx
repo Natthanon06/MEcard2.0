@@ -106,9 +106,9 @@ export default function LoginPage() {
                 รหัสผ่าน
               </label>
               {/* ลิงก์ลืมรหัสผ่าน (ใส่ไว้สวยๆ ก่อน) */}
-              <a href="#" className="text-xs text-blue-600 hover:underline">
-                ลืมรหัสผ่าน?
-              </a>
+             <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+              ลืมรหัสผ่าน?
+             </Link>
             </div>
             <input
               id="password"
