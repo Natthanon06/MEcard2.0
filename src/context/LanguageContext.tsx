@@ -27,9 +27,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   return (
     <LanguageContext.Provider value={{ lang, toggleLanguage }}>
-      {children}
+      {children} 
     </LanguageContext.Provider>
-  );
+  ); //ดูเพิ่ม
 }
 
 export function useLanguage() {

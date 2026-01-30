@@ -18,9 +18,9 @@ export const TEXT = {
   nav_logout_confirm: { th: "ต้องการออกจากระบบใช่หรือไม่?", en: "Are you sure you want to logout?" },
 
   // --- Landing Page ---
-  hero_tag: { th: "✨ นามบัตรดิจิทัลยุคใหม่", en: "✨ Next-Gen Digital Card" },
+  hero_tag: { th: " นามบัตรดิจิทัลยุคใหม่", en: " Next-Gen Digital Card" },
   hero_desc: { th: "เปลี่ยนนามบัตรกระดาษเดิมๆ เป็นลิงก์เดียวที่รวมทุกตัวตนของคุณ แชร์ง่ายผ่าน QR Code ไม่ต้องโหลดแอป", en: "Replace paper cards with a single link showcasing your identity. Easily share via QR Code, no app required." },
-  btn_start: { th: "เริ่มสร้างเลย (ฟรี) →", en: "Get Started (Free) →" },
+  btn_start: { th: "เริ่มสร้างเลย  ", en: "Get Started  " },
   btn_mycard: { th: "ดูนามบัตรของฉัน", en: "My Cards" },
   footer_rights: { th: "© 2025 MEcard. สงวนลิขสิทธิ์.", en: "© 2025 MEcard. All rights reserved." },
   footer_privacy: { th: "นโยบายความเป็นส่วนตัว", en: "Privacy Policy" },
@@ -81,7 +81,7 @@ export const TEXT = {
 
   btn_next: { th: "ถัดไป →", en: "Next →" },
   btn_back: { th: "←", en: "←" },
-  btn_save: { th: "บันทึกนามบัตร ✨", en: "Save Card ✨" },
+  btn_save: { th: "บันทึกนามบัตร ", en: "Save Card " },
   
   alert_incomplete: { th: "ข้อมูลไม่ครบถ้วน กรุณาย้อนกลับไปแก้ไข", en: "Incomplete data. Please go back and edit." },
   alert_login_save: { th: "กรุณาเข้าสู่ระบบก่อนบันทึก", en: "Please login before saving." },

@@ -148,7 +148,7 @@ export default function ScanPage() {
               onScan={handleCameraScan}
               scanDelay={500}
               formats={['qr_code']}
-              components={{ audio: false, finder: false }}
+              components={{ finder: false }}
               constraints={{ facingMode: 'environment' }}
             />
             <div className="absolute top-0 left-0 w-full h-1 bg-green-500 shadow-[0_0_20px_#22c55e] animate-[scan_2s_linear_infinite] opacity-80 z-20"></div>

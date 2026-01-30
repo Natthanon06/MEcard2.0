@@ -1,28 +1,29 @@
 // src/app/layout.tsx
-import './globals.css'
-import { Inter } from 'next/font/google'
-import { LanguageProvider } from '@/context/LanguageContext' // ✅ นำเข้า
+"use client";
 
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-  title: 'MEcard',
-  description: 'Digital Business Card Platform',
-}
+import "./globals.css";
+import { LanguageProvider } from "@/context/LanguageContext";
+// 1. ✅ Import Component แจ้งเตือนส่วนกลางเข้ามา
+import GlobalAlert from "@/components/GlobalAlert"; 
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
+  // ❌ ลบ useEffect เดิมออกให้หมดเลยครับ! 
+  // เพราะ Logic การเช็คเวลาไปอยู่ใน <GlobalAlert /> แล้ว
+
   return (
     <html lang="en">
-      <body className={inter.className}>
-        {/* ✅ ครอบ LanguageProvider ไว้ชั้นนอกสุด */}
+      <body>
         <LanguageProvider>
-          {children}
+           {/* 2. ✅ วาง Component ไว้ตรงนี้ (มันจะลอยอยู่เหนือทุกหน้า) */}
+           <GlobalAlert /> 
+           
+           {children}
         </LanguageProvider>
       </body>
     </html>
-  )
+  );
 }

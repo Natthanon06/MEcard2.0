@@ -22,7 +22,7 @@ export default function Step1Theme() {
         const parsed = JSON.parse(saved);
         if (parsed.templateId) setTemplateId(parsed.templateId);
     }
-  }, []);
+  }, []);  //ดูเพิ่ม
 
   const handleNext = () => {
     const saved = JSON.parse(localStorage.getItem("draftCard") || "{}");

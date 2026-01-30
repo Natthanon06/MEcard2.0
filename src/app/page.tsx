@@ -75,10 +75,7 @@ export default function LandingPage() {
                 {isMenuOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 origin-top-right">
                     <div className="py-2">
-                      <div className="px-4 py-2 border-b border-gray-50 mb-1">
-                        <p className="text-xs text-gray-400">{TEXT.nav_logged_in_as[lang]}</p>
-                        <p className="text-sm font-bold text-gray-800 truncate">{currentUser.email}</p>
-                      </div>
+                      {/* ... ส่วนหัว User Profile เดิม ... */}
                       
                       <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-purple-600 transition" onClick={() => setIsMenuOpen(false)}>
                         <span>👤</span> {TEXT.nav_profile[lang]}
@@ -86,6 +83,11 @@ export default function LandingPage() {
                       
                       <Link href="/exchange" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-purple-600 transition" onClick={() => setIsMenuOpen(false)}>
                         <span>📇</span> {TEXT.nav_exchange[lang]}
+                      </Link>
+
+                      {/* ✅ เพิ่มปุ่มนัดหมายประชุมตรงนี้ครับ */}
+                      <Link href="/meeting" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-purple-600 transition" onClick={() => setIsMenuOpen(false)}>
+                        <span>📅</span> นัดหมายการประชุม
                       </Link>
                       
                       <div className="border-t border-gray-50 my-1"></div>
@@ -96,6 +98,7 @@ export default function LandingPage() {
                     </div>
                   </div>
                 )}
+
               </div>
             ) : (
               <Link href="/login" className="text-sm font-semibold text-gray-600 hover:text-gray-900 transition">

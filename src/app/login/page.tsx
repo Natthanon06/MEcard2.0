@@ -22,7 +22,7 @@ export default function LoginPage() {
     setTimeout(() => {
       // 1. ดึงข้อมูลสมาชิกทั้งหมดจาก Local Storage
       const storedData = localStorage.getItem("registeredUsers");
-      const existingUsers = storedData ? JSON.parse(storedData) : [];
+      const existingUsers = storedData ? JSON.parse(storedData) : []; //เช็คการทำงาน
 
       // 2. ค้นหา user ที่มีอีเมล AND รหัสผ่าน ตรงกับที่กรอกมา
       // (logic: หาคนที่มี email นี้ และ password นี้)
@@ -53,9 +53,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       {/* Background decoration (ธีมเดียวกับ Register) */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-3xl opacity-30"></div>
-        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-purple-100 blur-3xl opacity-30"></div>
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-3xl opacity-30"></div> {/* รหัสสี , blur */}
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-[#F3E8FF] blur-3xl opacity-30"></div>
       </div>
+      
 
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         
@@ -105,7 +106,7 @@ export default function LoginPage() {
               <label htmlFor="password" className="text-sm font-medium text-gray-700 block">
                 รหัสผ่าน
               </label>
-              {/* ลิงก์ลืมรหัสผ่าน (ใส่ไว้สวยๆ ก่อน) */}
+              {/* ลิงก์ลืมรหัสผ่าน */}
              <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
               ลืมรหัสผ่าน?
              </Link>
