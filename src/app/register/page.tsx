@@ -1,12 +1,13 @@
-// src/app/register/page.tsx
 "use client";
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation"; // 1. เพิ่มตัวช่วยเปลี่ยนหน้า
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter(); // 2. ประกาศตัวแปร router
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,41 +27,33 @@ export default function RegisterPage() {
       return;
     }
 
-    // จำลอง Delay นิดหน่อย
-    setTimeout(() => {
-      
-      // --- 2. ดึงข้อมูลเก่าจาก Local Storage มาดู (Database จำลองใน Browser) ---
-      const storedData = localStorage.getItem("registeredUsers"); // ไปดูในกล่องชื่อ registeredUsers
-      const existingUsers = storedData ? JSON.parse(storedData) : []; // ถ้ามีข้อมูลก็แปลงมาใช้ ถ้าไม่มีก็สร้าง Array เปล่า
+    try {
+      // --- 2. ส่งข้อมูลไปที่ API (MongoDB) ---
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-      // --- 3. เช็คว่ามีอีเมลนี้หรือยัง ---
-      // วนลูปดูว่าใน existingUsers มีคนใช้อีเมลนี้หรือยัง
-      const isDuplicate = existingUsers.some((user: any) => user.email === email);
+      const data = await res.json();
 
-      if (isDuplicate) {
-        setIsLoading(false);
-        setError("อีเมลนี้ถูกใช้งานแล้ว (มีอยู่ใน Local Storage แล้ว)");
-        return;
+      if (!res.ok) {
+        // ถ้า API ตอบกลับมาว่า error (เช่น อีเมลซ้ำ)
+        throw new Error(data.error || "สมัครสมาชิกไม่สำเร็จ");
       }
 
-      // --- 4. ถ้าไม่ซ้ำ ก็บันทึกข้อมูลลง Local Storage ---
-      const newUser = { name, email, password };
-      
-      // เอาคนใหม่ ใส่รวมกับคนเก่า
-      const updatedUsers = [...existingUsers, newUser];
+      // --- 3. ถ้าสำเร็จ ---
+      alert("สมัครสมาชิกสำเร็จ! 🎉 กรุณาเข้าสู่ระบบ");
+      router.push("/login"); // ส่งไปหน้า Login
 
-      // บันทึกกลับลงไปใน Local Storage
-      localStorage.setItem("registeredUsers", JSON.stringify(updatedUsers));
-
-      console.log("✅ บันทึกข้อมูลสำเร็จ:", newUser);
-      console.log("📂 ฐานข้อมูลทั้งหมดตอนนี้:", updatedUsers);
-
+    } catch (err: any) {
+      // แสดง Error ที่ได้จาก Server
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-      alert(`ลงทะเบียนสำเร็จ!\n\nตอนนี้มีผู้ใช้งานในระบบ ${updatedUsers.length} คนแล้ว`);
-      
-      // (Optional) สั่งให้ไปหน้า Login หรือเคลียร์ฟอร์มตรงนี้ได้
-      
-    }, 1000);
+    }
   }
 
   return (

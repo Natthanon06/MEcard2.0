@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation"; // ใช้สำหรับสั่งเปลี่ยนหน้า
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter(); // ตัวสั่งเปลี่ยนหน้าของ Next.js
+  const router = useRouter();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -18,45 +18,49 @@ export default function LoginPage() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    // จำลองเวลาโหลดนิดหน่อย
-    setTimeout(() => {
-      // 1. ดึงข้อมูลสมาชิกทั้งหมดจาก Local Storage
-      const storedData = localStorage.getItem("registeredUsers");
-      const existingUsers = storedData ? JSON.parse(storedData) : []; //เช็คการทำงาน
+    try {
+      // 1. ส่ง Email/Pass ไปขอ Token จาก Server
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-      // 2. ค้นหา user ที่มีอีเมล AND รหัสผ่าน ตรงกับที่กรอกมา
-      // (logic: หาคนที่มี email นี้ และ password นี้)
-      const validUser = existingUsers.find(
-        (user: any) => user.email === email && user.password === password
-      );
+      const data = await res.json();
 
-      if (!validUser) {
-        // ถ้าหาไม่เจอ หรือรหัสผิด
-        setIsLoading(false);
-        setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
-        return;
+      if (!res.ok) {
+        throw new Error(data.error || "เข้าสู่ระบบไม่สำเร็จ");
       }
 
-      // 3. ถ้าเจอข้อมูลถูกต้อง (Login ผ่าน)
-      // บันทึกสถานะว่าล็อกอินแล้ว (Optional: เอาไว้ใช้เช็คหน้าอื่น)
-      localStorage.setItem("currentUser", JSON.stringify(validUser));
+      // --- จุดสำคัญ: เมื่อ Login ผ่าน Server จะส่ง Token มาให้ ---
       
-      alert(`เข้าสู่ระบบสำเร็จ`);
+      // 2. เก็บ Token ลง LocalStorage (เปรียบเสมือนบัตรผ่าน)
+      localStorage.setItem("token", data.token);
       
-      // สั่งย้ายหน้าไปที่หน้าแรก (หรือหน้า Dashboard)
+      // 3. เก็บข้อมูลผู้ใช้ทั่วไป (เผื่อเอาไปโชว์ชื่อ)
+      localStorage.setItem("currentUser", JSON.stringify(data.user));
+
+      alert("เข้าสู่ระบบสำเร็จ! 🎉");
+      
+      // 4. ไปหน้าแรก
       router.push("/"); 
-      
-    }, 1000);
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      {/* Background decoration (ธีมเดียวกับ Register) */}
+      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-3xl opacity-30"></div> {/* รหัสสี , blur */}
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-100 blur-3xl opacity-30"></div>
         <div className="absolute top-[20%] -right-[10%] w-[40%] h-[40%] rounded-full bg-[#F3E8FF] blur-3xl opacity-30"></div>
       </div>
-      
 
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         
@@ -91,7 +95,6 @@ export default function LoginPage() {
               type="email"
               placeholder="example@domain.com"
               required
-              // เมื่อเริ่มพิมพ์ใหม่ ให้ error หายไป
               onChange={() => setError(null)}
               className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
                 error 
@@ -106,10 +109,9 @@ export default function LoginPage() {
               <label htmlFor="password" className="text-sm font-medium text-gray-700 block">
                 รหัสผ่าน
               </label>
-              {/* ลิงก์ลืมรหัสผ่าน */}
-             <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
-              ลืมรหัสผ่าน?
-             </Link>
+              <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+               ลืมรหัสผ่าน?
+              </Link>
             </div>
             <input
               id="password"
@@ -137,7 +139,7 @@ export default function LoginPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                กำลังเข้าสู่ระบบ...
+                กำลังตรวจสอบ...
               </>
             ) : (
               "เข้าสู่ระบบ"
@@ -145,11 +147,10 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Footer / Register Link */}
+        {/* Footer */}
         <div className="px-8 py-4 bg-gray-50 border-t border-gray-100 text-center">
           <p className="text-sm text-gray-600">
             ยังไม่มีบัญชีใช่ไหม?{" "}
-            {/* ลิงก์กลับไปหน้า Register */}
             <Link href="/register" className="text-blue-600 font-medium hover:underline hover:text-blue-700 transition-colors">
               สมัครสมาชิก
             </Link>
