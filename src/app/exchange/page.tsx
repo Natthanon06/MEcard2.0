@@ -1,7 +1,6 @@
-// src/app/exchange/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
@@ -16,7 +15,10 @@ const TEMPLATES: any = {
   "luxury-gold": { bg: "bg-neutral-900", text: "text-amber-50", sub: "text-neutral-400", accent: "text-amber-400" }
 };
 
-export default function ExchangePage() {
+// ----------------------------------------------------------------------
+// 1. แยก Content ออกมาเป็น Component ลูก (เพื่อให้ใช้ useSearchParams ได้)
+// ----------------------------------------------------------------------
+function ExchangeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -31,20 +33,24 @@ export default function ExchangePage() {
   const [shareMode, setShareMode] = useState<'work' | 'party'>('work');
 
   useEffect(() => {
+    // 1. เช็ค User
     const userStr = localStorage.getItem("currentUser");
     if (!userStr) { router.push("/login"); return; }
     const user = JSON.parse(userStr);
     setCurrentUser(user);
 
+    // 2. ดึงการ์ดของฉัน
     const savedCards = JSON.parse(localStorage.getItem("savedCards") || "[]");
     const mine = savedCards.filter((c: any) => c.ownerEmail === user.email);
     setMyCards(mine);
     if (mine.length > 0) setSelectedCard(mine[0]);
 
+    // 3. ดึง Inbox
     const inboxKey = `inbox_${user.email}`;
     const inbox = JSON.parse(localStorage.getItem(inboxKey) || "[]");
     setInboxCards(inbox.reverse());
 
+    // 4. เช็ค URL param ว่าต้องไป Tab ไหน
     if (searchParams.get('tab') === 'inbox') {
       setActiveTab('inbox');
     }
@@ -293,5 +299,20 @@ export default function ExchangePage() {
         <span className="font-bold pr-1">{TEXT.btn_scan[lang]}</span>
       </Link>
     </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// 2. Component หลัก (ครอบด้วย Suspense)
+// ----------------------------------------------------------------------
+export default function ExchangePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    }>
+      <ExchangeContent />
+    </Suspense>
   );
 }
