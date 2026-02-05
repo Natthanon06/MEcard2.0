@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation"; // 1. เพิ่มตัวช่วยเปลี่ยนหน้า
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter(); // 2. ประกาศตัวแปร router
+  const router = useRouter();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,15 +20,31 @@ export default function RegisterPage() {
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
 
-    // --- 1. ตรวจสอบ Password ---
+    // --- ส่วนตรวจสอบความถูกต้อง (Validation) ---
+
+    // 1. เช็คว่ารหัสผ่านตรงกันไหม (อันนี้แยกไว้เหมือนเดิม เพื่อความชัดเจน)
     if (password !== confirmPassword) {
-      setIsLoading(false);
       setError("รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง");
+      setIsLoading(false);
       return;
     }
 
+    // 2. ✅ (แก้ใหม่) รวมเช็ค ความยาว + ตัวเลข + ตัวอักษร ในรวดเดียว
+    // ถ้าข้อใดข้อหนึ่งไม่ผ่าน ให้แจ้งเตือนรวมเลย
+    const isLengthValid = password.length >= 8;
+    const hasNumber = /[0-9]/.test(password);
+    const hasLetter = /[a-zA-Z]/.test(password);
+
+    if (!isLengthValid || !hasNumber || !hasLetter) {
+      setError("รหัสผ่านต้องมีความยาว 8 ตัวขึ้นไป และมีทั้งตัวเลขและตัวอักษรภาษาอังกฤษผสมกัน");
+      setIsLoading(false);
+      return;
+    }
+
+    // ------------------------------------------
+
     try {
-      // --- 2. ส่งข้อมูลไปที่ API (MongoDB) ---
+      // ส่งข้อมูลไปที่ API
       const res = await fetch("/api/register", {
         method: "POST",
         headers: {
@@ -40,16 +56,14 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // ถ้า API ตอบกลับมาว่า error (เช่น อีเมลซ้ำ)
         throw new Error(data.error || "สมัครสมาชิกไม่สำเร็จ");
       }
 
-      // --- 3. ถ้าสำเร็จ ---
+      // ถ้าสำเร็จ
       alert("สมัครสมาชิกสำเร็จ! 🎉 กรุณาเข้าสู่ระบบ");
-      router.push("/login"); // ส่งไปหน้า Login
+      router.push("/login");
 
     } catch (err: any) {
-      // แสดง Error ที่ได้จาก Server
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -75,12 +89,13 @@ export default function RegisterPage() {
 
         <form onSubmit={onSubmit} className="px-8 pb-8 space-y-5">
           
+          {/* กล่องแสดง Error */}
           {error && (
-            <div className="bg-red-50 text-red-600 text-sm py-2 px-4 rounded-lg border border-red-100 flex items-center animate-pulse">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="bg-red-50 text-red-600 text-sm py-3 px-4 rounded-lg border border-red-100 flex items-start animate-pulse">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              {error}
+              <span>{error}</span>
             </div>
           )}
 
@@ -92,7 +107,7 @@ export default function RegisterPage() {
               id="name"
               name="name" 
               type="text"
-              placeholder="name"
+              placeholder="Your Name"
               required
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
             />
@@ -119,15 +134,21 @@ export default function RegisterPage() {
 
           <div className="space-y-2">
             <label htmlFor="password" className="text-sm font-medium text-gray-700 block">
-              รหัสผ่าน
+              รหัสผ่าน <span className="text-xs text-gray-400 font-normal"></span>
             </label>
+            {/* เพิ่มลูกเล่น: ถ้ามี Error เกี่ยวกับรหัสผ่าน ให้ช่องนี้แดงด้วย */}
             <input
               id="password"
               name="password"
               type="password"
               placeholder="••••••••"
               required
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
+              onChange={() => setError(null)}
+              className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                error && error.includes("รหัสผ่าน") 
+                ? "border-red-300 focus:ring-red-500/20 focus:border-red-500"
+                : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
+              }`}
             />
           </div>
 
@@ -142,7 +163,11 @@ export default function RegisterPage() {
               placeholder="••••••••"
               required
               onChange={() => setError(null)} 
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
+              className={`w-full px-4 py-2.5 rounded-lg border text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                error && error.includes("รหัสผ่าน") 
+                ? "border-red-300 focus:ring-red-500/20 focus:border-red-500"
+                : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
+              }`}
             />
           </div>
 

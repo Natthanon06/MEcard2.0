@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { email, password } = await req.json();
     await dbConnect();
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }); //findOne ดึงชื่อแรกชื่อเดียว
 
     // เช็ค User และ Password
     if (!user || user.password !== password) {
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     // สร้าง Token (หมดอายุใน 1 วัน)
     const token = jwt.sign(tokenData, process.env.JWT_SECRET!, {
-      expiresIn: "1d",
+      expiresIn: "30d",
     });
 
     // 3. ส่ง Token กลับไปพร้อมข้อมูล User
