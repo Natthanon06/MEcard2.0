@@ -1,4 +1,3 @@
-// src/app/profile/page.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -37,6 +36,7 @@ export default function ProfilePage() {
   const statusMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // 1. ตรวจสอบ User ใน LocalStorage
     const currentUserStr = localStorage.getItem("currentUser");
     if (!currentUserStr) {
       router.push("/login");
@@ -48,14 +48,8 @@ export default function ProfilePage() {
     
     setUser(currentUser);
 
-    const savedCardsStr = localStorage.getItem("savedCards");
-    if (savedCardsStr) {
-      const allCards = JSON.parse(savedCardsStr);
-      const userCards = allCards.filter((card: any) => card.ownerEmail === currentUser.email);
-      setMyCards(userCards.reverse());
-    }
-    
-    setIsLoading(false);
+    // 🚀 2. (แก้ใหม่) ดึงข้อมูลการ์ดจาก API/MongoDB แทน LocalStorage
+    fetchMyCards(currentUser.email);
 
     function handleClickOutside(event: MouseEvent) {
       if (statusMenuRef.current && !statusMenuRef.current.contains(event.target as Node)) {
@@ -67,6 +61,24 @@ export default function ProfilePage() {
 
   }, [router]);
 
+  // 🔥 ฟังก์ชันดึงข้อมูลจาก MongoDB
+  const fetchMyCards = async (email: string) => {
+    try {
+      const res = await fetch(`/api/cards?email=${email}`);
+      const data = await res.json();
+
+      if (data.success) {
+        setMyCards(data.data); // เอาข้อมูลจริงจาก DB ใส่ State
+      } else {
+        console.error("Failed to fetch cards");
+      }
+    } catch (error) {
+      console.error("Error fetching cards:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleChangeStatus = (statusId: string) => {
     const updatedUser = { ...user, status: statusId };
     setUser(updatedUser);
@@ -74,14 +86,14 @@ export default function ProfilePage() {
     setIsStatusMenuOpen(false);
   };
 
-  const handleDeleteCard = (cardId: number) => {
-    // ✅ ใช้ TEXT
+  // 🔥 ฟังก์ชันลบการ์ด (อัปเดตเฉพาะหน้าจอ)
+  const handleDeleteCard = (cardId: string) => { // MongoDB ID เป็น String
     if (confirm(TEXT.confirmDelete[lang])) {
-      const savedCardsStr = localStorage.getItem("savedCards");
-      const allCards = savedCardsStr ? JSON.parse(savedCardsStr) : [];
-      const updatedAllCards = allCards.filter((c: any) => c.id !== cardId);
-      localStorage.setItem("savedCards", JSON.stringify(updatedAllCards));
-      setMyCards((prev) => prev.filter((c) => c.id !== cardId));
+       // ลบออกจาก State ทันทีเพื่อให้ User รู้สึกว่าลบแล้ว
+       setMyCards((prev) => prev.filter((c) => c._id !== cardId));
+       
+       // หมายเหตุ: ตรงนี้ถ้าจะให้ลบถาวรต้องยิง API DELETE ไปที่ Server เพิ่มเติมในอนาคต
+       console.log("Delete UI Only for:", cardId);
     }
   };
 
@@ -220,12 +232,16 @@ export default function ProfilePage() {
               const theme = TEMPLATES.find((t:any) => t.id === card.templateId) || TEMPLATES[0];
 
               return (
-                <div key={card.id} className="group relative">
-                  <button onClick={() => handleDeleteCard(card.id)} className="absolute -top-3 -right-3 z-30 bg-red-500 text-white p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 transform hover:scale-110" title={TEXT.confirmDelete[lang]}>
+                <div key={card._id} className="group relative"> {/* ✅ ใช้ _id เป็น key */}
+                  <button onClick={() => handleDeleteCard(card._id)} className="absolute -top-3 -right-3 z-30 bg-red-500 text-white p-2 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 transform hover:scale-110" title={TEXT.confirmDelete[lang]}>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   </button>
 
-                  <div className={`w-full aspect-[1.58/1] rounded-xl shadow-lg p-6 relative overflow-hidden transform transition-all hover:scale-[1.01] hover:shadow-2xl ${theme.bgClass} ${theme.textClass}`}>
+                  {/* กดที่การ์ดแล้วไปหน้า Exchange */}
+                  <div 
+                    onClick={() => router.push('/exchange')} 
+                    className={`cursor-pointer w-full aspect-[1.58/1] rounded-xl shadow-lg p-6 relative overflow-hidden transform transition-all hover:scale-[1.01] hover:shadow-2xl ${theme.bgClass} ${theme.textClass}`}
+                  >
                     <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl -mr-8 -mt-8 opacity-20 bg-white"></div>
                     <div className="absolute bottom-0 left-0 w-20 h-20 rounded-full blur-xl -ml-4 -mb-4 opacity-20 bg-white"></div>
 
