@@ -1,4 +1,3 @@
-// src/app/view/page.tsx
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -10,7 +9,8 @@ function CardViewer() {
   const router = useRouter();
   const [card, setCard] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [viewMode, setViewMode] = useState('work'); // เก็บโหมดที่ส่งมา
+  const [viewMode, setViewMode] = useState('work'); 
+  const [isSaving, setIsSaving] = useState(false); // เพิ่มสถานะกำลังบันทึก
 
   useEffect(() => {
     const userStr = localStorage.getItem("currentUser");
@@ -19,6 +19,7 @@ function CardViewer() {
     const mode = searchParams.get("mode") || "work";
     setViewMode(mode);
 
+    // สร้างข้อมูลการ์ดจาก URL Params
     const data = {
       fullName: searchParams.get("n") || "",
       position: searchParams.get("p") || "",
@@ -34,28 +35,52 @@ function CardViewer() {
       receivedDate: new Date().toISOString()
     };
 
-    if (data.fullName) {
-      if (!data.profileImage) {
+    // (Optional) Logic เดิม: พยายามหารูปจากเครื่องตัวเองเผื่อ URL ไม่มี
+    // แต่ในระบบจริงควรส่ง URL รูปมาใน QR Code ให้ครบถ้วน
+    if (data.fullName && !data.profileImage) {
         const savedCards = JSON.parse(localStorage.getItem("savedCards") || "[]");
         const localMatch = savedCards.find((c: any) => c.fullName === data.fullName);
         if (localMatch && localMatch.profileImage) {
           data.profileImage = localMatch.profileImage; 
         }
-      }
-      setCard(data);
     }
+    
+    setCard(data);
   }, [searchParams]);
 
-  const handleSave = () => {
+  // 🚀 ฟังก์ชันบันทึกเข้า Database (API)
+  const handleSave = async () => {
     if (!currentUser) {
       if(confirm("กรุณาเข้าสู่ระบบก่อนบันทึกนามบัตร")) router.push("/login");
       return;
     }
-    const inboxKey = `inbox_${currentUser.email}`;
-    let oldInbox = JSON.parse(localStorage.getItem(inboxKey) || "[]");
-    const newCard = { ...card, id: Date.now(), receivedFrom: "QR Link Scan" };
-    localStorage.setItem(inboxKey, JSON.stringify([...oldInbox, newCard]));
-    router.push("/exchange?tab=inbox");
+
+    setIsSaving(true);
+
+    try {
+        const res = await fetch("/api/inbox", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userEmail: currentUser.email, // บันทึกเข้า Inbox ของเรา
+                cardData: card // ข้อมูลการ์ดทั้งหมด
+            })
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+            alert("บันทึกสำเร็จ! ✅");
+            router.push("/exchange?tab=inbox"); // เด้งไปหน้า Inbox
+        } else {
+            // ถ้า Error (เช่น ซ้ำ) ให้แจ้งเตือน
+            alert(result.error || "บันทึกไม่สำเร็จ");
+        }
+    } catch (error) {
+        alert("เกิดข้อผิดพลาดในการเชื่อมต่อ Server");
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   if (!card) return <div className="min-h-screen bg-black text-white flex items-center justify-center">กำลังอ่านข้อมูล...</div>;
@@ -71,7 +96,7 @@ function CardViewer() {
              <img src={card.profileImage} className={`w-full h-full rounded-full object-cover border-4 shadow-2xl ${viewMode === 'party' ? 'border-pink-500' : 'border-gray-800'}`} alt="Profile" />
            ) : (
              <div className="w-full h-full rounded-full bg-gray-800 border-4 border-gray-700 flex items-center justify-center text-4xl font-bold text-gray-400">
-               {card.fullName.charAt(0)}
+               {card.fullName?.charAt(0)}
              </div>
            )}
         </div>
@@ -84,10 +109,9 @@ function CardViewer() {
           </p>
         </div>
 
-        {/* ข้อมูลติดต่อ (โชว์ตามที่ Link ส่งมา) */}
+        {/* ข้อมูลติดต่อ */}
         <div className="bg-white/5 rounded-2xl p-2 space-y-1 mb-8 min-h-[150px]">
           
-          {/* ข้อมูลงาน */}
           {card.phoneNumber && (
             <a href={`tel:${card.phoneNumber}`} className="flex items-center gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors group">
               <span className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-lg">📞</span>
@@ -134,8 +158,19 @@ function CardViewer() {
           )}
         </div>
 
-        <button onClick={handleSave} className={`w-full text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${viewMode === 'party' ? 'bg-pink-600 hover:bg-pink-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
-          <span>บันทึกเก็บไว้ 📥</span>
+        <button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className={`w-full text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${viewMode === 'party' ? 'bg-pink-600 hover:bg-pink-500' : 'bg-blue-600 hover:bg-blue-500'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+        >
+          {isSaving ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                <span>กำลังบันทึก...</span>
+              </>
+          ) : (
+              <span>บันทึกเก็บไว้ 📥</span>
+          )}
         </button>
         
         <Link href="/" className="block text-gray-500 text-xs hover:text-white transition mt-6">MEcard Platform</Link>
