@@ -9,6 +9,8 @@ export default function MeetingPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [contacts, setContacts] = useState<any[]>([]); 
   const [meetings, setMeetings] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]); // 🔔 State แจ้งเตือน
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false); // 🔔 State เปิด/ปิด Dropdown
   const [isLoading, setIsLoading] = useState(true);
   
   // Form State
@@ -28,17 +30,23 @@ export default function MeetingPage() {
       setCurrentUser(user);
 
       try {
-        // ดึงรายชื่อเพื่อนจาก Inbox (API) เพื่อมาใส่ใน Dropdown
+        // 1.1 ดึงรายชื่อเพื่อน
         const inboxRes = await fetch(`/api/inbox?email=${user.email}`);
         const inboxData = await inboxRes.json();
         if (inboxData.success) {
-            // Map ข้อมูลให้ใช้ง่ายๆ
             const mappedContacts = inboxData.data.map((item: any) => item.cardData);
             setContacts(mappedContacts);
         }
 
-        // ดึงรายการนัดหมาย (API)
+        // 1.2 ดึงรายการนัดหมาย
         fetchMeetings(user.email);
+
+        // 🔔 1.3 ดึงการแจ้งเตือน
+        const notifRes = await fetch(`/api/notifications?email=${user.email}`);
+        const notifData = await notifRes.json();
+        if (notifData.success) {
+            setNotifications(notifData.data);
+        }
 
       } catch (error) {
         console.error("Error loading data:", error);
@@ -50,11 +58,24 @@ export default function MeetingPage() {
     initData();
   }, [router]);
 
-  // ฟังก์ชันดึงนัดหมาย (แยกออกมาเพื่อเรียกใช้ซ้ำได้)
+  // ฟังก์ชันดึงนัดหมาย
   const fetchMeetings = async (email: string) => {
     const res = await fetch(`/api/meetings?email=${email}`);
     const data = await res.json();
     if (data.success) setMeetings(data.data);
+  };
+
+  // 🔔 ฟังก์ชันลบแจ้งเตือน
+  const clearNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // กันไม่ให้ Dropdown ปิด
+    try {
+        // ลบใน Database
+        await fetch(`/api/notifications?id=${id}`, { method: 'DELETE' });
+        // อัปเดตหน้าจอทันที
+        setNotifications(prev => prev.filter(n => n._id !== id));
+    } catch (error) {
+        console.error("Delete notification failed");
+    }
   };
 
   // ✅ 2. ฟังก์ชันสร้างนัดหมาย
@@ -83,9 +104,7 @@ export default function MeetingPage() {
         if (res.ok) {
             alert("✅ สร้างนัดหมายสำเร็จ!");
             setIsOpen(false);
-            // เคลียร์ฟอร์ม
             setTitle(""); setDate(""); setTime(""); setPartnerEmail("");
-            // โหลดข้อมูลใหม่ทันที
             fetchMeetings(currentUser.email);
         } else {
             alert("สร้างนัดหมายไม่สำเร็จ");
@@ -104,7 +123,6 @@ export default function MeetingPage() {
     try {
         const res = await fetch(`/api/meetings?id=${id}`, { method: "DELETE" });
         if (res.ok) {
-            // ลบออกจาก State หน้าจอทันที (ไม่ต้องรอโหลดใหม่ให้เสียเวลา)
             setMeetings(prev => prev.filter(m => m._id !== id));
         } else {
             alert("ลบไม่สำเร็จ");
@@ -119,10 +137,56 @@ export default function MeetingPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
       
-      {/* Header */}
-      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
-        <Link href="/" className="text-2xl hover:bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full transition">⬅</Link>
-        <h1 className="text-xl font-bold text-gray-800">📅 นัดหมายการประชุม</h1>
+      {/* Header (ปรับปรุงใหม่: มีปุ่มแจ้งเตือน) */}
+      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-4">
+            <Link href="/" className="text-2xl hover:bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full transition">⬅</Link>
+            <h1 className="text-xl font-bold text-gray-800">📅 นัดหมาย</h1>
+        </div>
+
+        {/* 🔔 ส่วนแจ้งเตือน */}
+        <div className="relative">
+            <button onClick={() => setShowNotifDropdown(!showNotifDropdown)} className="relative p-2 rounded-full hover:bg-gray-100 transition">
+                <span className="text-2xl">🔔</span>
+                {notifications.length > 0 && (
+                    <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                        {notifications.length}
+                    </span>
+                )}
+            </button>
+
+            {/* Dropdown แจ้งเตือน */}
+            {showNotifDropdown && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowNotifDropdown(false)}></div> {/* Overlay ปิดเมื่อกดข้างนอก */}
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
+                            <span className="font-bold text-sm text-gray-700">การแจ้งเตือน</span>
+                            <span className="text-xs text-gray-400">{notifications.length} รายการ</span>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                            {notifications.length === 0 ? (
+                                <div className="p-6 text-center text-gray-400 text-sm">
+                                    <p>🔕 ไม่มีแจนเตือนใหม่</p>
+                                </div>
+                            ) : (
+                                notifications.map((n) => (
+                                    <div key={n._id} className="p-4 border-b border-gray-50 hover:bg-blue-50 flex justify-between items-start gap-3 transition-colors">
+                                        <div className="text-sm text-gray-600 leading-snug">
+                                            {n.message}
+                                            <div className="text-[10px] text-gray-400 mt-1">{new Date(n.createdAt).toLocaleString('th-TH')}</div>
+                                        </div>
+                                        <button onClick={(e) => clearNotification(n._id, e)} className="text-gray-300 hover:text-red-500 p-1">
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
       </nav>
 
       <div className="max-w-xl mx-auto p-6">
@@ -139,16 +203,18 @@ export default function MeetingPage() {
             )}
             
             {meetings.map((m) => (
-                <div key={m._id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center group">
+                <div key={m._id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center group hover:shadow-md transition-shadow">
                     <div>
                         <div className="text-xs font-bold mb-1 px-2 py-0.5 rounded-md inline-block bg-purple-50 text-purple-600">
-                            {/* จัดรูปแบบวันที่ให้สวยงาม */}
                             {new Date(m.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} • {m.time} น.
                         </div>
                         <h3 className="font-bold text-lg text-gray-800">{m.title}</h3>
                         <p className="text-sm text-gray-500">กับ: {m.partnerName}</p>
                     </div>
-                    <button onClick={() => deleteMeeting(m._id)} className="text-gray-300 hover:text-red-500 p-2 transition-colors">🗑️</button>
+                    {/* ปุ่มลบจะโชว์เฉพาะคนสร้าง (เช็คจาก userEmail) */}
+                    {m.userEmail === currentUser?.email && (
+                        <button onClick={() => deleteMeeting(m._id)} className="text-gray-300 hover:text-red-500 p-2 transition-colors">🗑️</button>
+                    )}
                 </div>
             ))}
         </div>
