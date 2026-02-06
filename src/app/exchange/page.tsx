@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import QRCode from "react-qr-code";
-// ✅ Import Hook และ TEXT
 import { useLanguage } from "@/context/LanguageContext";
 import { TEXT } from "@/constants/text";
 
@@ -16,13 +15,11 @@ const TEMPLATES: any = {
 };
 
 // ----------------------------------------------------------------------
-// 1. แยก Content ออกมาเป็น Component ลูก (เพื่อให้ใช้ useSearchParams ได้)
+// 1. แยก Content ออกมาเป็น Component ลูก
 // ----------------------------------------------------------------------
 function ExchangeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // ✅ ดึงค่าภาษา (lang) มาใช้
   const { lang } = useLanguage(); 
   
   const [activeTab, setActiveTab] = useState<'myqr' | 'inbox'>('myqr');
@@ -31,38 +28,69 @@ function ExchangeContent() {
   const [inboxCards, setInboxCards] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [shareMode, setShareMode] = useState<'work' | 'party'>('work');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 1. เช็ค User
-    const userStr = localStorage.getItem("currentUser");
-    if (!userStr) { router.push("/login"); return; }
-    const user = JSON.parse(userStr);
-    setCurrentUser(user);
+    const initData = async () => {
+      // 1. เช็ค User
+      const userStr = localStorage.getItem("currentUser");
+      if (!userStr) { router.push("/login"); return; }
+      const user = JSON.parse(userStr);
+      setCurrentUser(user);
 
-    // 2. ดึงการ์ดของฉัน
-    const savedCards = JSON.parse(localStorage.getItem("savedCards") || "[]");
-    const mine = savedCards.filter((c: any) => c.ownerEmail === user.email);
-    setMyCards(mine);
-    if (mine.length > 0) setSelectedCard(mine[0]);
+      try {
+        // 🚀 2. ดึงการ์ดของฉันจาก API (MongoDB)
+        const myCardsRes = await fetch(`/api/cards?email=${user.email}`);
+        const myCardsData = await myCardsRes.json();
+        
+        if (myCardsData.success) {
+            setMyCards(myCardsData.data);
+            if (myCardsData.data.length > 0) setSelectedCard(myCardsData.data[0]);
+        }
 
-    // 3. ดึง Inbox
-    const inboxKey = `inbox_${user.email}`;
-    const inbox = JSON.parse(localStorage.getItem(inboxKey) || "[]");
-    setInboxCards(inbox.reverse());
+        // 🚀 3. ดึง Inbox จาก API (MongoDB)
+        const inboxRes = await fetch(`/api/inbox?email=${user.email}`);
+        const inboxData = await inboxRes.json();
 
-    // 4. เช็ค URL param ว่าต้องไป Tab ไหน
-    if (searchParams.get('tab') === 'inbox') {
-      setActiveTab('inbox');
-    }
+        if (inboxData.success) {
+            // Map ข้อมูลให้ UI เข้าใจ (MongoDB เก็บ _id แต่เราเอามาใส่ savedCardId เพื่อใช้ตอนลบ)
+            const mappedInbox = inboxData.data.map((item: any) => ({
+                ...item.cardData,   
+                savedCardId: item._id 
+            }));
+            setInboxCards(mappedInbox);
+        }
+
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+
+      // 4. เช็ค URL param
+      if (searchParams.get('tab') === 'inbox') {
+        setActiveTab('inbox');
+      }
+    };
+
+    initData();
   }, [router, searchParams]);
 
-  const deleteInboxCard = (targetId: number) => {
+  // 🚀 ฟังก์ชันลบ Inbox (ยิง API DELETE)
+  const deleteInboxCard = async (targetId: string) => { 
     if (!confirm(TEXT.confirmDelete[lang])) return; 
-    const inboxKey = `inbox_${currentUser.email}`;
-    const rawInbox = JSON.parse(localStorage.getItem(inboxKey) || "[]");
-    const newInbox = rawInbox.filter((c: any) => c.id !== targetId);
-    localStorage.setItem(inboxKey, JSON.stringify(newInbox)); 
-    setInboxCards([...newInbox].reverse()); 
+    
+    try {
+        const res = await fetch(`/api/inbox?id=${targetId}`, { method: "DELETE" });
+        if (res.ok) {
+            // ลบสำเร็จ -> อัปเดตหน้าจอทันที
+            setInboxCards(prev => prev.filter((c: any) => c.savedCardId !== targetId));
+        } else {
+            alert("ลบไม่สำเร็จ");
+        }
+    } catch (e) {
+        alert("Error deleting card");
+    }
   };
 
   const getQRData = (card: any) => {
@@ -92,30 +120,26 @@ function ExchangeContent() {
     return `${baseUrl}/view?${searchParams.toString()}`;
   };
 
-  // ✅ ฟังก์ชันแชร์ (Bluetooth / AirDrop)
   const handleNativeShare = async () => {
     if (!selectedCard) return;
     const shareUrl = getQRData(selectedCard);
     
-    // ตรวจสอบว่า Browser รองรับการแชร์หรือไม่
     if (navigator.share) {
       try {
         await navigator.share({
           title: `MEcard: ${selectedCard.fullName}`,
-          text: `${TEXT.share_text_prefix[lang]} (${shareMode === 'work' ? TEXT.mode_work[lang] : TEXT.mode_party[lang]})`,
+          text: `${TEXT.share_text_prefix[lang]}`,
           url: shareUrl,
         });
       } catch (error) {
-        console.log('User cancelled or share failed:', error);
+        console.log('Share failed:', error);
       }
     } else {
-      // Fallback: ถ้าไม่รองรับให้ Copy Link แทน
       navigator.clipboard.writeText(shareUrl);
       alert(TEXT.copy_link_success[lang]);
     }
   };
 
-  // Helper function to format URL for inbox links
   const formatUrl = (val: string, platform: string) => {
     if (!val) return "#";
     if (val.startsWith("http")) return val;
@@ -128,6 +152,12 @@ function ExchangeContent() {
       default: return val;
     }
   };
+
+  if (isLoading) return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-gray-200 border-t-blue-600"></div>
+      </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -185,12 +215,10 @@ function ExchangeContent() {
                     <QRCode value={getQRData(selectedCard)} size={220} level="M" fgColor={shareMode === 'party' ? '#db2777' : '#1e293b'} bgColor="transparent" />
                   </div>
                   
-                  {/* คำอธิบาย */}
                   <p className="text-xs text-gray-400 mb-4">
                     {shareMode === 'work' ? TEXT.scan_hint_work[lang] : TEXT.scan_hint_party[lang]}
                   </p>
 
-                  {/* ✅ ปุ่ม Share (Bluetooth / AirDrop) */}
                   <div className="w-full px-4">
                     <button 
                       onClick={handleNativeShare}
@@ -211,13 +239,13 @@ function ExchangeContent() {
                 <div className="w-full max-w-sm space-y-2">
                   <p className="text-sm font-medium text-gray-500 ml-2">{TEXT.select_card_label[lang]}</p>
                   {myCards.map((card) => (
-                    <button key={card.id} onClick={() => setSelectedCard(card)} className={`w-full text-left p-3 rounded-xl border transition-all flex items-center gap-3 ${selectedCard.id === card.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <button key={card._id} onClick={() => setSelectedCard(card)} className={`w-full text-left p-3 rounded-xl border transition-all flex items-center gap-3 ${selectedCard._id === card._id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}>
                       <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">{card.fullName.charAt(0)}</div>
                       <div className="flex-1">
                         <div className="text-sm font-bold text-gray-800">{card.fullName}</div>
                         <div className="text-xs text-gray-500">{card.position}</div>
                       </div>
-                      {selectedCard.id === card.id && <span className="text-blue-500">✓</span>}
+                      {selectedCard._id === card._id && <span className="text-blue-500">✓</span>}
                     </button>
                   ))}
                 </div>
@@ -248,7 +276,7 @@ function ExchangeContent() {
                 return (
                   <div key={idx} className={`relative w-full aspect-[1.58/1] rounded-3xl shadow-lg overflow-hidden p-5 flex flex-col justify-between ${theme.bg} ${theme.text}`}>
                     <button 
-                      onClick={(e) => { e.stopPropagation(); deleteInboxCard(card.id); }}
+                      onClick={(e) => { e.stopPropagation(); deleteInboxCard(card.savedCardId); }}
                       className="absolute top-3 right-3 z-20 w-7 h-7 flex items-center justify-center bg-black/20 hover:bg-red-500/80 rounded-full text-white/70 hover:text-white transition"
                     >✕</button>
 
@@ -263,7 +291,7 @@ function ExchangeContent() {
                       {/* Action Links */}
                       <div className={`space-y-1 text-xs ${theme.sub} overflow-hidden w-full pr-14`}>
                         <div className="flex items-center gap-1.5 opacity-70">
-                          <span>📅</span><span>{new Date(card.receivedDate).toLocaleDateString('th-TH')}</span>
+                          <span>📅</span><span>{new Date(card.receivedDate || Date.now()).toLocaleDateString('th-TH')}</span>
                         </div>
                         
                         {card.phoneNumber && <a href={`tel:${card.phoneNumber}`} className="flex items-center gap-1.5 hover:underline hover:opacity-80 transition-all cursor-pointer"><span>📞</span>{card.phoneNumber}</a>}
