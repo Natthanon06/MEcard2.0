@@ -1,4 +1,3 @@
-// src/app/meetings/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,68 +9,117 @@ export default function MeetingPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [contacts, setContacts] = useState<any[]>([]); 
   const [meetings, setMeetings] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Form State
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [partnerEmail, setPartnerEmail] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
+  // ✅ 1. โหลดข้อมูลเมื่อเปิดหน้าเว็บ
   useEffect(() => {
-    const userStr = localStorage.getItem("currentUser");
-    if (!userStr) { router.push("/login"); return; }
-    const user = JSON.parse(userStr);
-    setCurrentUser(user);
+    const initData = async () => {
+      const userStr = localStorage.getItem("currentUser");
+      if (!userStr) { router.push("/login"); return; }
+      const user = JSON.parse(userStr);
+      setCurrentUser(user);
 
-    const inboxKey = `inbox_${user.email}`;
-    setContacts(JSON.parse(localStorage.getItem(inboxKey) || "[]"));
+      try {
+        // ดึงรายชื่อเพื่อนจาก Inbox (API) เพื่อมาใส่ใน Dropdown
+        const inboxRes = await fetch(`/api/inbox?email=${user.email}`);
+        const inboxData = await inboxRes.json();
+        if (inboxData.success) {
+            // Map ข้อมูลให้ใช้ง่ายๆ
+            const mappedContacts = inboxData.data.map((item: any) => item.cardData);
+            setContacts(mappedContacts);
+        }
 
-    const meetingKey = `meetings_${user.email}`;
-    const savedMeetings = JSON.parse(localStorage.getItem(meetingKey) || "[]");
-    // Migration
-    const cleanMeetings = savedMeetings.map((m: any) => ({ ...m, acknowledged: m.acknowledged || false }));
-    setMeetings(cleanMeetings);
+        // ดึงรายการนัดหมาย (API)
+        fetchMeetings(user.email);
+
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initData();
   }, [router]);
 
-  const handleCreateMeeting = (e: React.FormEvent) => {
+  // ฟังก์ชันดึงนัดหมาย (แยกออกมาเพื่อเรียกใช้ซ้ำได้)
+  const fetchMeetings = async (email: string) => {
+    const res = await fetch(`/api/meetings?email=${email}`);
+    const data = await res.json();
+    if (data.success) setMeetings(data.data);
+  };
+
+  // ✅ 2. ฟังก์ชันสร้างนัดหมาย
+  const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date || !time) return alert("กรุณากรอกข้อมูลให้ครบ");
 
+    setIsSubmitting(true);
+
     const partner = contacts.find(c => c.email === partnerEmail) || { fullName: "ไม่ระบุ / นัดส่วนตัว" };
-    const newMeeting = {
-        id: Date.now(),
-        title,
-        partnerName: partner.fullName || partner.name,
-        partnerEmail,
-        date,
-        time,
-        status: 'upcoming',
-        acknowledged: false
-    };
+    
+    try {
+        const res = await fetch("/api/meetings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userEmail: currentUser.email,
+                title,
+                partnerName: partner.fullName || partner.name,
+                partnerEmail,
+                date,
+                time
+            })
+        });
 
-    const updatedMeetings = [...meetings, newMeeting];
-    setMeetings(updatedMeetings);
-    localStorage.setItem(`meetings_${currentUser.email}`, JSON.stringify(updatedMeetings));
-
-    setIsOpen(false);
-    setTitle("");
-    setDate("");
-    setTime("");
-    alert("✅ สร้างนัดหมายสำเร็จ!");
+        if (res.ok) {
+            alert("✅ สร้างนัดหมายสำเร็จ!");
+            setIsOpen(false);
+            // เคลียร์ฟอร์ม
+            setTitle(""); setDate(""); setTime(""); setPartnerEmail("");
+            // โหลดข้อมูลใหม่ทันที
+            fetchMeetings(currentUser.email);
+        } else {
+            alert("สร้างนัดหมายไม่สำเร็จ");
+        }
+    } catch (error) {
+        alert("เกิดข้อผิดพลาด");
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
-  const deleteMeeting = (id: number) => {
+  // ✅ 3. ฟังก์ชันลบนัดหมาย
+  const deleteMeeting = async (id: string) => {
     if(!confirm("ต้องการยกเลิกนัดหมายนี้ใช่ไหม?")) return;
-    const updated = meetings.filter(m => m.id !== id);
-    setMeetings(updated);
-    localStorage.setItem(`meetings_${currentUser.email}`, JSON.stringify(updated));
+    
+    try {
+        const res = await fetch(`/api/meetings?id=${id}`, { method: "DELETE" });
+        if (res.ok) {
+            // ลบออกจาก State หน้าจอทันที (ไม่ต้องรอโหลดใหม่ให้เสียเวลา)
+            setMeetings(prev => prev.filter(m => m._id !== id));
+        } else {
+            alert("ลบไม่สำเร็จ");
+        }
+    } catch (error) {
+        alert("เกิดข้อผิดพลาด");
+    }
   };
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-4 border-purple-600 border-t-transparent"></div></div>;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
       
-      {/* Header (เอาปุ่มกระดิ่งออก เพราะมี Global แล้ว) */}
+      {/* Header */}
       <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 sticky top-0 z-30 shadow-sm">
         <Link href="/" className="text-2xl hover:bg-gray-100 w-10 h-10 flex items-center justify-center rounded-full transition">⬅</Link>
         <h1 className="text-xl font-bold text-gray-800">📅 นัดหมายการประชุม</h1>
@@ -84,21 +132,23 @@ export default function MeetingPage() {
 
         <h2 className="font-bold text-gray-600 mb-4">นัดหมายที่กำลังจะถึง</h2>
         <div className="space-y-4">
-            {meetings.filter(m => !m.acknowledged).length === 0 && <p className="text-center text-gray-400 py-10">ไม่มีนัดหมายใหม่</p>}
+            {meetings.length === 0 && (
+                <div className="text-center py-10 text-gray-400">
+                    <p>ยังไม่มีนัดหมายเร็วๆ นี้</p>
+                </div>
+            )}
             
-            {meetings
-                .filter(m => !m.acknowledged) 
-                .sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time))
-                .map((m) => (
-                <div key={m.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center group">
+            {meetings.map((m) => (
+                <div key={m._id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center group">
                     <div>
                         <div className="text-xs font-bold mb-1 px-2 py-0.5 rounded-md inline-block bg-purple-50 text-purple-600">
-                            {m.date} • {m.time} น.
+                            {/* จัดรูปแบบวันที่ให้สวยงาม */}
+                            {new Date(m.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} • {m.time} น.
                         </div>
                         <h3 className="font-bold text-lg text-gray-800">{m.title}</h3>
                         <p className="text-sm text-gray-500">กับ: {m.partnerName}</p>
                     </div>
-                    <button onClick={() => deleteMeeting(m.id)} className="text-gray-300 hover:text-red-500 p-2 transition-colors">🗑️</button>
+                    <button onClick={() => deleteMeeting(m._id)} className="text-gray-300 hover:text-red-500 p-2 transition-colors">🗑️</button>
                 </div>
             ))}
         </div>
@@ -120,15 +170,22 @@ export default function MeetingPage() {
                     <div>
                         <label className="text-sm font-bold text-black">นัดกับใคร? (เลือกจาก Inbox)</label>
                         <select value={partnerEmail} onChange={e => setPartnerEmail(e.target.value)} className="w-full mt-1 p-3 bg-gray-50 rounded-xl border border-gray-200 text-black font-medium focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors">
-                            <option value="">-- เลือกเพื่อน --</option>
-                            {contacts.map((c, i) => <option key={i} value={c.email}>{c.fullName || c.name} ({c.position})</option>)}
+                            <option value="">-- เลือกเพื่อน (หรือเว้นว่างไว้) --</option>
+                            {contacts.map((c, i) => <option key={i} value={c.email}>{c.fullName} ({c.position || 'No Position'})</option>)}
                         </select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="text-sm font-bold text-black">วันที่</label><input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full mt-1 p-3 bg-gray-50 rounded-xl border border-gray-200 text-black font-medium focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors" /></div>
                         <div><label className="text-sm font-bold text-black">เวลา</label><input type="time" value={time} onChange={e => setTime(e.target.value)} required className="w-full mt-1 p-3 bg-gray-50 rounded-xl border border-gray-200 text-black font-medium focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors" /></div>
                     </div>
-                    <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg mt-4 hover:bg-gray-800 transition-transform active:scale-[0.98] shadow-lg">บันทึกนัดหมาย</button>
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg mt-4 hover:bg-gray-800 transition-transform active:scale-[0.98] shadow-lg flex justify-center items-center gap-2">
+                        {isSubmitting ? (
+                            <>
+                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                                <span>กำลังบันทึก...</span>
+                            </>
+                        ) : "บันทึกนัดหมาย"}
+                    </button>
                 </form>
             </div>
         </div>
