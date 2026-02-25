@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
 import GuestSavedCard from "../../../../models/GuestSavedCard";
- import connectMongoDB from "../../../../lib/mongodb";
+import connectMongoDB from "../../../../lib/mongodb";
 
 export async function GET() {
   try {
-     await connectMongoDB(); 
+    await connectMongoDB();
     
-    // 🌟 ใส่ await ตรงนี้ด้วยครับ
     const cookieStore = await cookies();
     const guestId = cookieStore.get("mecard_guest_id")?.value;
 
@@ -16,10 +14,12 @@ export async function GET() {
       return NextResponse.json({ success: true, data: null });
     }
 
-    const scannedCard = await GuestSavedCard.findOne({ guestId }).sort({ createdAt: -1 });
-    return NextResponse.json({ success: true, data: scannedCard });
+    // 🌟 ดึงแค่ "ใบเดียว" ที่ใหม่ที่สุด (createdAt: -1)
+    const latestCard = await GuestSavedCard.findOne({ guestId }).sort({ createdAt: -1 });
+
+    return NextResponse.json({ success: true, data: latestCard });
   } catch (error) {
-    console.error("Get scan error:", error);
+    console.error("Get latest scan error:", error);
     return NextResponse.json({ success: false, error: "Server Error" }, { status: 500 });
   }
 }
