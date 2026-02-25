@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import GuestSavedCard from "../../../../models/GuestSavedCard";
-// import connectMongoDB from "../../../../lib/mongodb";
+ import connectMongoDB from "../../../../lib/mongodb";
 
 export async function GET() {
   try {
-    // await connectMongoDB(); 
+     await connectMongoDB(); 
     
     // 🌟 ใส่ await ตรงนี้ด้วยครับ
     const cookieStore = await cookies();

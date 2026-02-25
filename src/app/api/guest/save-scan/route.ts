@@ -4,11 +4,11 @@ import { v4 as uuidv4 } from "uuid";
 
 // 1️⃣ แก้ Path ให้ย้อนแค่ 4 ชั้น (เป๊ะแน่นอน)
 import GuestSavedCard from "../../../../models/GuestSavedCard";
-// import connectMongoDB from "../../../../lib/mongodb"; // เอาคอมเมนต์ออกเมื่อพร้อมต่อ DB
+ import connectMongoDB from "../../../../lib/mongodb"; // เอาคอมเมนต์ออกเมื่อพร้อมต่อ DB
 
 export async function POST(req: Request) {
   try {
-    // await connectMongoDB(); 
+     await connectMongoDB(); 
     
     const body = await req.json();
     const { cardId, cardData } = body;
