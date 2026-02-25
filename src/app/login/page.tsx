@@ -10,7 +10,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+    event.preventDefault(); 
     setError(null);
     setIsLoading(true);
 
@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     try {
       // 1. ส่ง Email/Pass ไปขอ Token จาก Server
-      const res = await fetch("/api/login", {
+      const res = await fetch("/api/login", { 
         method: "POST",
         headers: {
           "Content-Type": "application/json",

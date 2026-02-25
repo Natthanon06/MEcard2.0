@@ -10,8 +10,9 @@ function CardViewer() {
   const [card, setCard] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [viewMode, setViewMode] = useState('work'); 
-  const [isSaving, setIsSaving] = useState(false); // เพิ่มสถานะกำลังบันทึก
+  const [isSaving, setIsSaving] = useState(false);
 
+  // 1️⃣ โหลดข้อมูลการ์ดและ User จาก LocalStorage
   useEffect(() => {
     const userStr = localStorage.getItem("currentUser");
     if (userStr) setCurrentUser(JSON.parse(userStr));
@@ -19,8 +20,8 @@ function CardViewer() {
     const mode = searchParams.get("mode") || "work";
     setViewMode(mode);
 
-    // สร้างข้อมูลการ์ดจาก URL Params
     const data = {
+      id: searchParams.get("id") || searchParams.get("n") || "unknown-id", // ใช้ชื่อเป็น ID สำรองถ้าไม่มี id ส่งมา
       fullName: searchParams.get("n") || "",
       position: searchParams.get("p") || "",
       email: searchParams.get("e") || "",
@@ -35,8 +36,6 @@ function CardViewer() {
       receivedDate: new Date().toISOString()
     };
 
-    // (Optional) Logic เดิม: พยายามหารูปจากเครื่องตัวเองเผื่อ URL ไม่มี
-    // แต่ในระบบจริงควรส่ง URL รูปมาใน QR Code ให้ครบถ้วน
     if (data.fullName && !data.profileImage) {
         const savedCards = JSON.parse(localStorage.getItem("savedCards") || "[]");
         const localMatch = savedCards.find((c: any) => c.fullName === data.fullName);
@@ -48,22 +47,38 @@ function CardViewer() {
     setCard(data);
   }, [searchParams]);
 
-  // 🚀 ฟังก์ชันบันทึกเข้า Database (API)
-  const handleSave = async () => {
-    if (!currentUser) {
-      if(confirm("กรุณาเข้าสู่ระบบก่อนบันทึกนามบัตร")) router.push("/login");
-      return;
+  // 2️⃣ 🌟 ระบบ Guest: แอบบันทึกข้อมูลอัตโนมัติลง DB 7 วัน (ทำเมื่อโหลกข้อมูลการ์ดเสร็จและเป็น Guest)
+  useEffect(() => {
+    if (card && !currentUser) {
+      const autoSaveGuest = async () => {
+        try {
+          await fetch("/api/guest/save-scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              cardId: card.id, 
+              cardData: card 
+            })
+          });
+          console.log("บันทึกข้อมูล Guest 7 วันสำเร็จ!");
+        } catch (error) {
+          console.error("บันทึก Guest ไม่สำเร็จ:", error);
+        }
+      };
+      autoSaveGuest();
     }
+  }, [card, currentUser]);
 
+  // 3️⃣ ฟังก์ชันบันทึกเข้า Database ถาวร (สำหรับ User ที่ล็อกอินแล้วเท่านั้น)
+  const handleSave = async () => {
     setIsSaving(true);
-
     try {
         const res = await fetch("/api/inbox", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                userEmail: currentUser.email, // บันทึกเข้า Inbox ของเรา
-                cardData: card // ข้อมูลการ์ดทั้งหมด
+                userEmail: currentUser.email, 
+                cardData: card 
             })
         });
 
@@ -71,9 +86,8 @@ function CardViewer() {
 
         if (res.ok) {
             alert("บันทึกสำเร็จ! ✅");
-            router.push("/exchange?tab=inbox"); // เด้งไปหน้า Inbox
+            router.push("/exchange?tab=inbox");
         } else {
-            // ถ้า Error (เช่น ซ้ำ) ให้แจ้งเตือน
             alert(result.error || "บันทึกไม่สำเร็จ");
         }
     } catch (error) {
@@ -86,7 +100,8 @@ function CardViewer() {
   if (!card) return <div className="min-h-screen bg-black text-white flex items-center justify-center">กำลังอ่านข้อมูล...</div>;
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center p-6 transition-colors duration-500 ${viewMode === 'party' ? 'bg-gradient-to-br from-purple-900 via-gray-900 to-black' : 'bg-black'}`}>
+    // 🌟 เพิ่ม pb-24 (padding-bottom) เพื่อไม่ให้เนื้อหาโดนเมนูด้านล่างบัง
+    <div className={`min-h-screen pb-24 flex flex-col items-center justify-center p-6 transition-colors duration-500 ${viewMode === 'party' ? 'bg-gradient-to-br from-purple-900 via-gray-900 to-black' : 'bg-black'}`}>
       
       <div className={`w-full max-w-sm border rounded-[2.5rem] p-8 text-center shadow-2xl relative overflow-hidden ${viewMode === 'party' ? 'bg-black/40 border-pink-500/30 backdrop-blur-md' : 'bg-gray-900 border-gray-800'}`}>
         
@@ -130,8 +145,6 @@ function CardViewer() {
               <span className="text-sm font-medium text-gray-200 truncate">{card.website}</span>
             </a>
           )}
-
-          {/* ข้อมูล Party */}
           {card.instagram && (
             <a href={`https://instagram.com/${card.instagram}`} target="_blank" className="flex items-center gap-4 p-3 hover:bg-white/5 rounded-xl transition-colors group">
               <span className="w-10 h-10 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center text-lg">📸</span>
@@ -158,30 +171,71 @@ function CardViewer() {
           )}
         </div>
 
-        <button 
-            onClick={handleSave} 
-            disabled={isSaving}
-            className={`w-full text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${viewMode === 'party' ? 'bg-pink-600 hover:bg-pink-500' : 'bg-blue-600 hover:bg-blue-500'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
-        >
-          {isSaving ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                <span>กำลังบันทึก...</span>
-              </>
-          ) : (
-              <span>บันทึกเก็บไว้ 📥</span>
-          )}
-        </button>
+        {/* 🌟 ปุ่มเซฟ (โชว์เฉพาะ User ที่ล็อกอินแล้ว เพราะ Guest เรา auto-save ให้แล้ว) */}
+        {currentUser && (
+          <button 
+              onClick={handleSave} 
+              disabled={isSaving}
+              className={`w-full text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 mb-4 ${viewMode === 'party' ? 'bg-pink-600 hover:bg-pink-500' : 'bg-blue-600 hover:bg-blue-500'} ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  <span>กำลังบันทึก...</span>
+                </>
+            ) : (
+                <span>บันทึกเข้ากระเป๋าถาวร 📥</span>
+            )}
+          </button>
+        )}
         
-        <Link href="/" className="block text-gray-500 text-xs hover:text-white transition mt-6">MEcard Platform</Link>
+        <Link href="/" className="block text-gray-500 text-xs hover:text-white transition mt-2">MEcard Platform</Link>
       </div>
+
+      {/* 🚀 เมนูด้านล่างสุด (Sticky Bottom) สำหรับชี้ทางผู้ใช้งาน */}
+      <div className="fixed bottom-0 left-0 w-full bg-[#111] p-4 border-t border-gray-800 flex gap-3 justify-center z-50">
+        {currentUser ? (
+          /* 🟢 เมนูสำหรับคนที่ Login แล้ว (User) */
+          <>
+            <Link 
+              href="/dashboard" 
+              className="flex-1 bg-gray-800 text-gray-200 text-center py-3.5 rounded-xl font-bold hover:bg-gray-700 transition"
+            >
+              นามบัตรของฉัน
+            </Link>
+            <Link 
+              href="/exchange?tab=inbox" 
+              className="flex-1 bg-blue-600 text-white text-center py-3.5 rounded-xl font-bold hover:bg-blue-500 transition"
+            >
+              เปิดกระเป๋า (Wallet)
+            </Link>
+          </>
+        ) : (
+          /* 🟡 เมนูสำหรับคนยังไม่ Login (Guest) */
+          <>
+            <Link 
+              href="/login?redirect=/create" 
+              className="flex-1 bg-white text-black text-center py-3.5 rounded-xl font-bold hover:bg-gray-200 transition"
+            >
+              สร้างนามบัตรของคุณ
+            </Link>
+            <Link 
+              href="/guest" 
+              className="flex-1 bg-gray-800 text-blue-400 border border-blue-900/50 text-center py-3.5 rounded-xl font-bold hover:bg-gray-700 transition"
+            >
+              ไปหน้า Guest
+            </Link>
+          </>
+        )}
+      </div>
+
     </div>
   );
 }
 
 export default function ViewPage() {
   return (
-    <Suspense fallback={<div className="text-white text-center pt-20">Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>}>
       <CardViewer />
     </Suspense>
   );
